@@ -1,5 +1,6 @@
 import gmail
 import re
+from datetime import *
 
 __author__ = "aestis"
 
@@ -52,10 +53,12 @@ class flight:
 
 def parseEmail(emailText, emailType="delta"):
     # print emailText
-    print emailText.split("\n")[20]
+    z = emailText.split("\n")[20]
+    flightNoRegex = re.compile("^DELTA \d+$")
     for line in emailText.split("\n"):
-        # print line
-        if re.search("^DELTA [0-9]+$", line): print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!!!!!!!!!"+line
+
+        if flightNoRegex.search(line.strip()): print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!!!!!!!!!"+line
+        # if re.search("^DELTA .+$", line): print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!!!!!!!!!" + line
         # Search for any line with 'DELTA 0000' where 0000 is any number of integers
 
 
