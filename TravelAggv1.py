@@ -1,4 +1,5 @@
 import gmail
+import re
 
 __author__ = "aestis"
 
@@ -8,16 +9,19 @@ def importCredentials(filename="credentials"):
     with open(filename+".txt","r") as credsFile:
         for line in credsFile:
             if "#" in line:
-                credType = line[1:]
+                credType = line[1:].rstrip("\n")
+                print credType
                 passBook[credType] = [None]*2
             elif "user:" in line:
-                passBook[credType][0] = line[line.find(":")+1:]
+                passBook[credType][0] = line[line.find(":")+1:].rstrip("\n")
             elif "pass:" in line:
-                passBook[credType][1] = line[line.find(":")+1:]
+                passBook[credType][1] = line[line.find(":")+1:].rstrip("\n")
+        print passBook
     return passBook
 
 
 def gmailConnect(passBook, secureAuth=False):
+    messages = []
     try:
         if not secureAuth:
             user, pw = passBook["gmail"]
@@ -34,9 +38,32 @@ def gmailConnect(passBook, secureAuth=False):
     for message in loginInstance.inbox().mail(unread=True):
         message.fetch()
         # print message.subject
-        print message.body
-        print "-----------"
+        # print message.body
+        # print "-----------"
+        messages.append(message)
+    return messages
+
+
+class flight:
+    def __init__(self, carrier, flightNum, ):
+        self.airline = carrier
+        self.number = flightNum
+
+
+def parseEmail(emailText, emailType="delta"):
+    # print emailText
+    print emailText.split("\n")[20]
+    for line in emailText.split("\n"):
+        # print line
+        if re.search("^DELTA [0-9]+$", line): print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!!!!!!!!!"+line
+        # Search for any line with 'DELTA 0000' where 0000 is any number of integers
+
 
 def main():
     passBook = importCredentials()
-    gmailConnect(passBook)
+    messages = gmailConnect(passBook)
+    for message in messages:
+        parseEmail(message.body)
+
+if __name__ == "__main__":
+    main()
