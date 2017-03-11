@@ -7,16 +7,16 @@ __author__ = "aestis"
 
 def importCredentials(filename="credentials"):
     passBook = {}  # {credential type: [username, password]}
-    with open(filename+".txt","r") as credsFile:
+    with open(filename + ".txt", "r") as credsFile:
         for line in credsFile:
             if "#" in line:
                 credType = line[1:].rstrip("\n")
                 print credType
-                passBook[credType] = [None]*2
+                passBook[credType] = [None] * 2
             elif "user:" in line:
-                passBook[credType][0] = line[line.find(":")+1:].rstrip("\n")
+                passBook[credType][0] = line[line.find(":") + 1:].rstrip("\n")
             elif "pass:" in line:
-                passBook[credType][1] = line[line.find(":")+1:].rstrip("\n")
+                passBook[credType][1] = line[line.find(":") + 1:].rstrip("\n")
         print passBook
     return passBook
 
@@ -46,20 +46,53 @@ def gmailConnect(passBook, secureAuth=False):
 
 
 class flight:
-    def __init__(self, carrier, flightNum, ):
+    def __init__(self, carrier, flightNum, depTime, arrTime, origin, destination):
         self.airline = carrier
         self.number = flightNum
+        self.depTime = depTime
+        self.arrTime = arrTime
+        self.origin = origin
+        self.destination = destination
 
 
-def parseEmail(emailText, emailType="delta"):
-    # print emailText
-    z = emailText.split("\n")[20]
-    flightNoRegex = re.compile("^DELTA \d+$")
+def regexGen(emailType="delta"):
+    if emailType == "delta":
+        flightNoRegex = re.compile("^DELTA \d+$")
+        re1 = '((?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Tues|Thur|Thurs' \
+              '|Sun|Mon|Tue|Wed|Thu|Fri|Sat))'  # Day Of Week 1
+        re2 = '(\\s+)'  # White Space 1
+        re3 = '((?:(?:[0-2]?\\d{1})|(?:[3][01]{1})))(?![\\d])'  # Day 1
+        re4 = '(\\s+)'  # White Space 2
+        re5 = '((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|' \
+              'Aug(?:ust)?|Sep(?:tember)?|Sept|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?))'  # Month 1
+        re6 = '(\\s+)'  # White Space 3
+        re7 = '((?:(?:[1]{1}\\d{1}\\d{1}\\d{1})|(?:[2]{1}\\d{3})))(?![\\d])'  # Year 1
+        re8 = '(\\s+)'  # White Space 4
+        re9 = '((?:[a-z][a-z0-9_]*))'  # Variable Name 1
+        re10 = '(:)'  # Any Single Character 1
+        re11 = '(\\s+)'  # White Space 5
+        re12 = '((?:[a-z][a-z0-9_]*))'  # Variable Name 2
+        re13 = '(\\s+)'  # White Space 6
+        re14 = '(\\[.*?\\])'  # Square Braces 1
+        re15 = '(\\s+)'  # White Space 7
+        re16 = '((?:[a-z][a-z0-9_]*))'  # Variable Name 3
+        flightDateRegex = re.compile(
+            re1 + re2 + re3 + re4 + re5 + re6 + re7 + re8 + re9 + re10 + re11 + re12 + re13 + re14 + re15 + re16,
+            re.IGNORECASE | re.DOTALL)
+        return flightNoRegex, flightDateRegex
+
+
+def parseEmail(emailText):
+    print emailText
+    flights = []
+    flightNoRegex, flightDateRegex = regexGen("delta")  # Future: This should be dynamic
     for line in emailText.split("\n"):
-
-        if flightNoRegex.search(line.strip()): print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!!!!!!!!!"+line
-        # if re.search("^DELTA .+$", line): print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!!!!!!!!!" + line
-        # Search for any line with 'DELTA 0000' where 0000 is any number of integers
+        if flightNoRegex.search(line.strip()):
+            flights.append(line)
+        elif flightDateRegex.search(line.strip()):
+            print line
+    for flight in flights:
+        print flight
 
 
 def main():
@@ -67,6 +100,7 @@ def main():
     messages = gmailConnect(passBook)
     for message in messages:
         parseEmail(message.body)
+
 
 if __name__ == "__main__":
     main()
