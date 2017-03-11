@@ -45,18 +45,8 @@ def gmailConnect(passBook, secureAuth=False):
     return messages
 
 
-class flight:
-    def __init__(self, carrier, flightNum, depTime, arrTime, origin, destination):
-        self.airline = carrier
-        self.number = flightNum
-        self.depTime = depTime
-        self.arrTime = arrTime
-        self.origin = origin
-        self.destination = destination
-
-
-def regexGen(emailType="delta"):
-    if emailType == "delta":
+def regexGen(emailType="DELTA"):
+    if emailType.upper() == "DELTA":
         flightNoRegex = re.compile("^DELTA \d+$")
         re1 = '((?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Tues|Thur|Thurs' \
               '|Sun|Mon|Tue|Wed|Thu|Fri|Sat))'  # Day Of Week 1
@@ -82,15 +72,27 @@ def regexGen(emailType="delta"):
         return flightNoRegex, flightDateRegex
 
 
+class flight:
+    def __init__(self, carrier, flightNum, origin, destination, depTime=None, arrTime=None):
+        self.airline = carrier
+        self.number = flightNum
+        self.origin = origin
+        self.destination = destination
+        self.depTime = depTime
+        self.arrTime = arrTime
+
+
 def parseEmail(emailText):
-    print emailText
+    carrier = "DELTA"  # Future: This should be dynamic, according to sender of email
     flights = []
-    flightNoRegex, flightDateRegex = regexGen("delta")  # Future: This should be dynamic
+    flightNoRegex, flightDateRegex = regexGen(carrier)
     for line in emailText.split("\n"):
         if flightNoRegex.search(line.strip()):
             flights.append(line)
         elif flightDateRegex.search(line.strip()):
-            print line
+            # The logic will assume that the order of dates matches the order of the flights in the email.
+            print line.split()[:4]
+
     for flight in flights:
         print flight
 
