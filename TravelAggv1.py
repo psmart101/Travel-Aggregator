@@ -17,7 +17,6 @@ def importCredentials(filename="credentials"):
                 passBook[credType][0] = line[line.find(":") + 1:].rstrip("\n")
             elif "pass:" in line:
                 passBook[credType][1] = line[line.find(":") + 1:].rstrip("\n")
-        print passBook
     return passBook
 
 
@@ -73,28 +72,43 @@ def regexGen(emailType="DELTA"):
 
 
 class flight:
-    def __init__(self, carrier, flightNum, origin, destination, depTime=None, arrTime=None):
-        self.airline = carrier
+    def __init__(self, carrier, flightNum, origin, destination, depDate, depTime=None, arrTime=None):
+        self.carrier = carrier
         self.number = flightNum
         self.origin = origin
         self.destination = destination
+        self.depDate = depDate
         self.depTime = depTime
         self.arrTime = arrTime
+
+    def selfDescribe(self):
+        print self.carrier.upper(), self.number
+        print " ".join([self.depTime, self.origin]) + " - " + " ".join([self.arrTime, self.destination])
+        print self.depDate.strftime("%B %d, %Y")
 
 
 def parseEmail(emailText):
     carrier = "DELTA"  # Future: This should be dynamic, according to sender of email
-    flights = []
+    flightsList = []
+    detailsList = []
     flightNoRegex, flightDateRegex = regexGen(carrier)
     for line in emailText.split("\n"):
         if flightNoRegex.search(line.strip()):
-            flights.append(line)
+            flightsList.append([line.split()[1]])
         elif flightDateRegex.search(line.strip()):
             # The logic will assume that the order of dates matches the order of the flights in the email.
-            print line.split()[:4]
+            dateText = line.split()[1:4]
+            flightDate = datetime.strptime(" ".join(dateText), "%d %b %Y")  # Convert date string into datetime
 
-    for flight in flights:
-        print flight
+            origin = line.split()[5]
+            destination = line.split()[-1]
+            assert len(origin) == 3, "<!> Invalid origin airport; check email parser: "+origin
+            assert len(destination) == 3, "<!> Invalid destination airport; check email parser: "+destination
+
+            detailsList.append([flightDate, origin, destination])
+
+    for eachFlight in zip(flightsList, detailsList):
+        print [carrier] + eachFlight[0] + eachFlight[1]
 
 
 def main():
