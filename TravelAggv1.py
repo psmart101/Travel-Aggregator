@@ -98,6 +98,10 @@ class segment:
     def flightAwareFormat(self):
         return self.carrier.icao.upper() + self.number
 
+    def getStatusInfo(self):
+        searchTerms = self.flightAwareFormat()
+        queryRet = flightAwareQuery(searchTerms)
+
 
 class airline:
     def __init__(self, senderDomain, convention="ICAO"):
@@ -129,20 +133,20 @@ class airline:
         print "IATA:", self.iata
 
 
-def flightAwareConnect(passBook):
+def flightAwareConnect():
+    passBook = importCredentials()
     user, apiKey = passBook["flightAware"]
     url = 'http://flightxml.flightaware.com/soap/FlightXML2/wsdl'
-
     logging.basicConfig(level=logging.INFO)
     api = Client(url, username=user, password=apiKey)
-
     return api
 
 
 def flightAwareQuery(searchCriteria):
-    passBook = importCredentials()
-    api = flightAwareConnect(passBook)
-    flightData = api.service.FlightInfo()
+    api = flightAwareConnect()
+    flightData = api.service.FlightInfo(searchCriteria, 1)
+    print flightData
+    return flightData
 
 
 def emailToSegments(inputMessage):
@@ -192,7 +196,8 @@ def main():
     messages = retrieveGmail()
     for message in messages:
         flightsList = emailToSegments(message)
-        for flight in flightsList:
+        for flight in flightsList[:1]:
+            flight.getStatusInfo()
             flight.selfDescribe()
 
 
