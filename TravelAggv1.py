@@ -1,5 +1,10 @@
 import gmail
 import re
+import sys
+import csv
+import logging
+from suds import null, WebFault
+from suds.client import Client
 from datetime import *
 
 __author__ = "aestis"
@@ -11,7 +16,6 @@ def importCredentials(filename="credentials"):
         for line in credsFile:
             if "#" in line:
                 credType = line[1:].rstrip("\n")
-                print credType
                 passBook[credType] = [None] * 2
             elif "user:" in line:
                 passBook[credType][0] = line[line.find(":") + 1:].rstrip("\n")
@@ -20,7 +24,8 @@ def importCredentials(filename="credentials"):
     return passBook
 
 
-def gmailConnect(passBook, secureAuth=False):
+def retrieveGmail(secureAuth=False):
+    passBook = importCredentials()
     messages = []
     try:
         if not secureAuth:
@@ -40,12 +45,14 @@ def gmailConnect(passBook, secureAuth=False):
         # print message.subject
         # print message.body
         # print "-----------"
+
         messages.append(message)
     return messages
 
 
-def regexGen(emailType="DELTA"):
-    if emailType.upper() == "DELTA":
+def carrierEmailRegexGen(domain="e.delta.com"):
+    # Handling for flights sent from e.delta.com
+    if domain.lower() == "e.delta.com":
         flightNoRegex = re.compile("^DELTA \d+$")
         re1 = '((?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Tues|Thur|Thurs' \
               '|Sun|Mon|Tue|Wed|Thu|Fri|Sat))'  # Day Of Week 1
@@ -71,51 +78,122 @@ def regexGen(emailType="DELTA"):
         return flightNoRegex, flightDateRegex
 
 
-class flight:
+class segment:
     def __init__(self, carrier, flightNum, origin, destination, depDate, depTime=None, arrTime=None):
-        self.carrier = carrier
+        assert isinstance(carrier, airline), "<!> Must instantiate Segment object with an Airline object."
+
+        self.carrier = carrier  # of type 'airline'
         self.number = flightNum
         self.origin = origin
         self.destination = destination
         self.depDate = depDate
-        self.depTime = depTime
-        self.arrTime = arrTime
+        self.depTime = depTime if depTime else ""
+        self.arrTime = arrTime if arrTime else ""
 
     def selfDescribe(self):
-        print self.carrier.upper(), self.number
+        print self.carrier.icao, self.number
         print " ".join([self.depTime, self.origin]) + " - " + " ".join([self.arrTime, self.destination])
         print self.depDate.strftime("%B %d, %Y")
 
+    def flightAwareFormat(self):
+        return self.carrier.icao.upper() + self.number
 
-def parseEmail(emailText):
-    carrier = "DELTA"  # Future: This should be dynamic, according to sender of email
-    flightsList = []
+
+class airline:
+    def __init__(self, senderDomain, convention="ICAO"):
+        self.domain = senderDomain
+
+        # Lookup other information about airline with getAirlineID()
+        self.icao, self.iata, self.callsign, self.airlineName = self.getAirlineID()
+
+        # Use ICAO convention unless otherwise specified.
+        self.id = self.icao if convention == "ICAO" else self.iata
+
+    def getAirlineID(self):
+        """Retrieve and return an international airline code from the accompanying csv file, iata_icao_airlines
+        or iata_icao_airlines_brief.
+        :param codeType: Type of airline identifier. 0=IATA, 1=ICAO, 2=Full airline name.
+        :param self: Airline: Airline object, which will be searched by domain in accompanying csv.
+        :return: String IATA ICAO airline code or full name
+        """
+        with open("iata_icao_airlines_brief.csv", "r") as csvFile:
+            csvReader = csv.reader(csvFile)
+            for row in filter(lambda x: x[0] == self.domain, csvReader):
+                airlineInfo = row[1:5]
+                return airlineInfo
+
+    def selfDescribe(self):
+        print self.airlineName
+        print "Callsign:", self.callsign
+        print "ICAO:", self.icao
+        print "IATA:", self.iata
+
+
+def flightAwareConnect(passBook):
+    user, apiKey = passBook["flightAware"]
+    url = 'http://flightxml.flightaware.com/soap/FlightXML2/wsdl'
+
+    logging.basicConfig(level=logging.INFO)
+    api = Client(url, username=user, password=apiKey)
+
+    return api
+
+
+def flightAwareQuery(searchCriteria):
+    passBook = importCredentials()
+    api = flightAwareConnect(passBook)
+    flightData = api.service.FlightInfo()
+
+
+def emailToSegments(inputMessage):
+    # Future: Carrier should be dynamic, according to sender of email
+    FlightNumList = []
     detailsList = []
-    flightNoRegex, flightDateRegex = regexGen(carrier)
-    for line in emailText.split("\n"):
+    flightsList = []
+    emailText = inputMessage.body.split("\n")
+    # print emailText
+    emailSender = inputMessage.fr  # Future: Attribute sender (personal email address) to user.
+
+    # Scan the header of the email and find sender's domain in From: line
+    for line in filter(lambda x: re.search("From: .+<.+@.+>$", x.strip()), emailText[:5]):
+        carrierDomain = line[line.find("@") + 1:line.find(">")]
+
+    # Retrieve regex's for specific carrier's email format from carrierEmailRegexGen()
+    flightNoRegex, flightDateRegex = carrierEmailRegexGen(carrierDomain)
+
+    # Use regex to parse through lines and find information...
+    for line in emailText:
         if flightNoRegex.search(line.strip()):
-            flightsList.append([line.split()[1]])
+            # flight number
+            FlightNumList.append([line.split()[1]])
         elif flightDateRegex.search(line.strip()):
             # The logic will assume that the order of dates matches the order of the flights in the email.
             dateText = line.split()[1:4]
+            # Departure date
             flightDate = datetime.strptime(" ".join(dateText), "%d %b %Y")  # Convert date string into datetime
 
+            # Origin and destination
             origin = line.split()[5]
             destination = line.split()[-1]
-            assert len(origin) == 3, "<!> Invalid origin airport; check email parser: "+origin
-            assert len(destination) == 3, "<!> Invalid destination airport; check email parser: "+destination
+            assert len(origin) == 3, "<!> Invalid origin airport; check email parser: " + origin
+            assert len(destination) == 3, "<!> Invalid destination airport; check email parser: " + destination
 
-            detailsList.append([flightDate, origin, destination])
+            detailsList.append([origin, destination, flightDate])
 
-    for eachFlight in zip(flightsList, detailsList):
-        print [carrier] + eachFlight[0] + eachFlight[1]
+    carrier = airline(carrierDomain)
+
+    for eachFlight in zip(FlightNumList, detailsList):
+        flightInstantiator = [carrier] + eachFlight[0] + eachFlight[1]
+        flightsList.append(segment(*flightInstantiator))
+    return flightsList
 
 
 def main():
-    passBook = importCredentials()
-    messages = gmailConnect(passBook)
+    messages = retrieveGmail()
     for message in messages:
-        parseEmail(message.body)
+        flightsList = emailToSegments(message)
+        for flight in flightsList:
+            flight.selfDescribe()
 
 
 if __name__ == "__main__":
