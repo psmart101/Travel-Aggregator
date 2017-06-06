@@ -78,31 +78,6 @@ def carrierEmailRegexGen(domain="e.delta.com"):
         return flightNoRegex, flightDateRegex
 
 
-class segment:
-    def __init__(self, carrier, flightNum, origin, destination, depDate, depTime=None, arrTime=None):
-        assert isinstance(carrier, airline), "<!> Must instantiate Segment object with an Airline object."
-
-        self.carrier = carrier  # of type 'airline'
-        self.number = flightNum
-        self.origin = origin
-        self.destination = destination
-        self.depDate = depDate
-        self.depTime = depTime if depTime else ""
-        self.arrTime = arrTime if arrTime else ""
-
-    def selfDescribe(self):
-        print self.carrier.icao, self.number
-        print " ".join([self.depTime, self.origin]) + " - " + " ".join([self.arrTime, self.destination])
-        print self.depDate.strftime("%B %d, %Y")
-
-    def flightAwareFormat(self):
-        return self.carrier.icao.upper() + self.number
-
-    def getStatusInfo(self):
-        searchTerms = self.flightAwareFormat()
-        queryRet = flightAwareQuery(searchTerms)
-
-
 class airline:
     def __init__(self, senderDomain, convention="ICAO"):
         self.domain = senderDomain
@@ -131,6 +106,52 @@ class airline:
         print "Callsign:", self.callsign
         print "ICAO:", self.icao
         print "IATA:", self.iata
+
+
+class segment:
+    def __init__(self, carrier, flightNum, origin, destination, depDate, depTime=None, arrTime=None):
+        assert isinstance(carrier, airline), "<!> Must instantiate Segment object with an Airline object."
+
+        self.carrier = carrier  # of type 'airline'
+        self.number = flightNum
+        self.origin = origin
+        self.destination = destination
+        self.depDate = depDate
+        self.depTime = depTime if depTime else ""
+        self.arrTime = arrTime if arrTime else ""
+
+    def selfDescribe(self):
+        print self.carrier.icao, self.number
+        print " ".join([self.depTime, self.origin]) + " - " + " ".join([self.arrTime, self.destination])
+        print self.depDate.strftime("%B %d, %Y")
+
+    def flightAwareFormat(self):
+        return self.carrier.icao.upper() + self.number
+
+    def getStatusInfo(self):
+        searchTerms = self.flightAwareFormat()
+        queryRet = flightAwareQuery(searchTerms)
+
+    def writeToDB(self):
+        return # Create function to record this entry to DB.
+
+class leg:
+    def __init__(self, segmentList):
+        self.segments = []
+        self.origin = segmentList[0].origin
+        self.departureDate = segmentList[0].depDate
+        self.destination = segmentList[-1].destination
+        # Future: Add arrival date support in Segment object
+        # self.arrivalDate = segmentList[0].arrDate
+
+        for eachFlight in segmentList:
+            assert isinstance(eachFlight, segment), "<!> Must instantiate Leg object one or more Segment objects."
+            self.segments.append(eachFlight)
+
+    def selfDescribe(self):
+        print "Leg:", self.origin, "to", self.destination
+        for flight in self.segments:
+            flight.selfDescribe()
 
 
 def flightAwareConnect():
